@@ -39,3 +39,10 @@ cmake-build-release/
 *.exe
 *.out
 *.app
+.DS_Store
+camera_params/
+frames/
+frames_to_localise/
+maps/
+orb_vocab/
+videos/

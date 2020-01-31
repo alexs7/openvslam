@@ -1,3 +1,4 @@
+#include <iostream>
 #include "util/image_util.h"
 
 #ifdef USE_PANGOLIN_VIEWER
@@ -8,6 +9,7 @@
 
 #include "openvslam/system.h"
 #include "openvslam/config.h"
+#include "openvslam/type.h"
 
 #include <iostream>
 #include <chrono>
@@ -30,6 +32,7 @@ void mono_localization(const std::shared_ptr<openvslam::config>& cfg,
                        const std::string& vocab_file_path, const std::string& image_dir_path, const std::string& mask_img_path,
                        const std::string& map_db_path, const bool mapping,
                        const unsigned int frame_skip, const bool no_sleep, const bool auto_term) {
+
     // load the mask image
     const cv::Mat mask = mask_img_path.empty() ? cv::Mat{} : cv::imread(mask_img_path, cv::IMREAD_GRAYSCALE);
 
@@ -60,7 +63,9 @@ void mono_localization(const std::shared_ptr<openvslam::config>& cfg,
 
     std::vector<double> track_times;
     track_times.reserve(frames.size());
+    openvslam::Mat44_t cam_pose;
 
+    std::cout << "frames.size(): " << frames.size() << '\n';
     // run the SLAM in another thread
     std::thread thread([&]() {
         for (unsigned int i = 0; i < frames.size(); ++i) {
@@ -71,12 +76,17 @@ void mono_localization(const std::shared_ptr<openvslam::config>& cfg,
 
             if (!img.empty() && (i % frame_skip == 0)) {
                 // input the current frame and estimate the camera pose
-                SLAM.feed_monocular_frame(img, frame.timestamp_, mask);
+                cam_pose = SLAM.feed_monocular_frame(img, frame.timestamp_, mask);
+                std::cout << "Pose Matrix:" << '\n' << cam_pose << '\n';
             }
 
             const auto tp_2 = std::chrono::steady_clock::now();
 
             const auto track_time = std::chrono::duration_cast<std::chrono::duration<double>>(tp_2 - tp_1).count();
+
+            std::cout << "index: " << i << '\n';
+            std::cout << "track_time: " << track_time << '\n';
+
             if (i % frame_skip == 0) {
                 track_times.push_back(track_time);
             }
@@ -197,9 +207,11 @@ int main(int argc, char* argv[]) {
 
     // run localization
     if (cfg->camera_->setup_type_ == openvslam::camera::setup_type_t::Monocular) {
-        mono_localization(cfg, vocab_file_path->value(), img_dir_path->value(), mask_img_path->value(),
+
+      mono_localization(cfg, vocab_file_path->value(), img_dir_path->value(), mask_img_path->value(),
                           map_db_path->value(), mapping->is_set(),
                           frame_skip->value(), no_sleep->is_set(), auto_term->is_set());
+
     }
     else {
         throw std::runtime_error("Invalid setup type: " + cfg->camera_->get_setup_type_string());
